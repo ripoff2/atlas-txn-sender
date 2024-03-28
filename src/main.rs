@@ -105,6 +105,7 @@ async fn main() -> anyhow::Result<()> {
     // Start server for each address
     let mut futures = Vec::new();
     for addr in addrs {
+        println!("starting server on: {}", addr);
         let server_handle = start_atlas_server(
             env.clone(),
             leader_tracker.clone(),
