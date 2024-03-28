@@ -91,11 +91,14 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let port = env.port.unwrap_or(4040);
-    let addrs: Vec<String> = env::var("ADDRS")
-        .unwrap_or("0.0.0.0".to_string())
+    let mut addrs: Vec<String> = env::var("EXTRA_ADDRS")
+        .unwrap_or("".to_string())
         .split(',')
         .map(|s| s.to_string())
+        .filter(|s| s != "127.0.0.1" && s != "")
         .collect();
+    addrs.push("0.0.0.0".to_string());
+    addrs.dedup();
 
     // Start server for each address
     let mut futures = Vec::new();
