@@ -45,14 +45,16 @@ pub trait AtlasTxnSender {
 
 pub struct AtlasTxnSenderImpl {
     txn_sender: Arc<dyn TxnSender>,
+    addr: String,
     max_txn_send_retries: usize,
 }
 
 impl AtlasTxnSenderImpl {
-    pub fn new(txn_sender: Arc<dyn TxnSender>, max_txn_send_retries: usize) -> Self {
+    pub fn new(txn_sender: Arc<dyn TxnSender>, max_txn_send_retries: usize, addr: String) -> Self {
         Self {
             txn_sender,
             max_txn_send_retries,
+            addr,
         }
     }
 }
@@ -74,6 +76,7 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
             .map(|m| m.api_key)
             .unwrap_or("none".to_string());
         statsd_count!("send_transaction", 1, "api_key" => &api_key);
+        statsd_count!("send_transaction_by_addr", 1, "addr" => &self.addr);
         validate_send_transaction_params(&params)?;
         let start = Instant::now();
         let encoding = params.encoding.unwrap_or(UiTransactionEncoding::Base58);
