@@ -46,6 +46,7 @@ struct AtlasTxnSenderEnv {
     txn_sender_threads: Option<usize>,
     max_txn_send_retries: Option<usize>,
     txn_send_retry_interval: Option<usize>,
+    extra_addrs: Option<Vec<String>>,
 }
 
 // Defualt on RPC is 4
@@ -91,9 +92,10 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let port = env.port.unwrap_or(4040);
-    let mut addrs: Vec<String> = env::var("EXTRA_ADDRS")
-        .unwrap_or("".to_string())
-        .split(',')
+    let mut addrs: Vec<String> = env_clone
+        .extra_addrs
+        .unwrap_or(vec![])
+        .iter()
         .map(|s| s.to_string())
         .filter(|s| s != "127.0.0.1" && s != "")
         .collect();
