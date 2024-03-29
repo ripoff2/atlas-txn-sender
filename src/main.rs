@@ -104,14 +104,14 @@ async fn main() -> anyhow::Result<()> {
 
     // Start server for each address
     let mut futures = Vec::new();
-    for addr in addrs {
+    for (i, addr) in addrs.iter().enumerate() {
         println!("starting server on: {}", addr);
         let server_handle = start_atlas_server(
             env.clone(),
             leader_tracker.clone(),
             solana_rpc.clone(),
-            addr,
-            port,
+            addr.to_string(),
+            port + i as u16,
         )
         .await;
         futures.push(server_handle.stopped());
