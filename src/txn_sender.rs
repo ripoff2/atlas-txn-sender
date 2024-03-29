@@ -14,6 +14,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     leader_tracker::LeaderTracker,
+    multi_cache::MultiCache,
     solana_rpc::SolanaRpc,
     transaction_store::{get_signature, TransactionData, TransactionStore},
 };
@@ -32,7 +33,7 @@ pub trait TxnSender: Send + Sync {
 pub struct TxnSenderImpl {
     leader_tracker: Arc<dyn LeaderTracker>,
     transaction_store: Arc<dyn TransactionStore>,
-    connection_cache: Arc<ConnectionCache>,
+    connection_cache: Arc<MultiCache>,
     solana_rpc: Arc<dyn SolanaRpc>,
     txn_sender_runtime: Arc<Runtime>,
     txn_send_retry_interval_seconds: usize,
@@ -42,7 +43,7 @@ impl TxnSenderImpl {
     pub fn new(
         leader_tracker: Arc<dyn LeaderTracker>,
         transaction_store: Arc<dyn TransactionStore>,
-        connection_cache: Arc<ConnectionCache>,
+        connection_cache: Arc<MultiCache>,
         solana_rpc: Arc<dyn SolanaRpc>,
         txn_sender_threads: usize,
         txn_send_retry_interval_seconds: usize,

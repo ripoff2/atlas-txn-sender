@@ -1,6 +1,7 @@
 mod errors;
 mod grpc_geyser;
 mod leader_tracker;
+mod multi_cache;
 mod rpc_server;
 mod solana_rpc;
 mod transaction_store;
@@ -47,6 +48,7 @@ struct AtlasTxnSenderEnv {
     txn_sender_threads: Option<usize>,
     max_txn_send_retries: Option<usize>,
     txn_send_retry_interval: Option<usize>,
+    host_addr: Option<String>,
     extra_addrs: Option<Vec<String>>,
 }
 
@@ -91,6 +93,9 @@ async fn main() -> anyhow::Result<()> {
         num_leaders,
         leader_offset,
     ));
+    let tpu_connection_pool_size = env
+        .tpu_connection_pool_size
+        .unwrap_or(DEFAULT_TPU_CONNECTION_POOL_SIZE);
 
     let port = env.port.unwrap_or(4040);
     let mut addrs: Vec<String> = env_clone
@@ -100,8 +105,42 @@ async fn main() -> anyhow::Result<()> {
         .map(|s| s.to_string())
         .filter(|s| s != "0.0.0.0" && s != "")
         .collect();
-    addrs.push("127.0.0.1".to_string());
+    addrs.push(env_clone.host_addr.unwrap_or("0.0.0.0".to_string()));
     addrs.dedup();
+
+    let connection_caches = addrs.iter().map(|addr| {
+        let keypair = if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
+            read_keypair_file(identity_keypair_file).expect("keypair file must exist");
+        } else {
+            Keypair::new();
+        };
+        let connection_cache = Arc::new(ConnectionCache::new_with_client_options(
+            "atlas-txn-sender",
+            tpu_connection_pool_size,
+            None, // created if none specified
+            Some((
+                &keypair,
+                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
+            )),
+            None, // not used as far as I can tell
+        ));
+        return connection_cache;
+    });
+
+    let server = ServerBuilder::default()
+        .set_middleware(
+            tower::ServiceBuilder::new()
+                // Proxy `GET /health` requests to internal `health` method.
+                .layer(
+                    ProxyGetRequestLayer::new("/health", "health")
+                        .expect("expected health check to initialize"),
+                ),
+        )
+        .max_request_body_size(15_000_000)
+        .max_connections(10_000)
+        .build(format!("{}:{}", addr, port))
+        .await
+        .expect(format!("failed to start server on {}:{}", addr, port).as_str());
 
     // Start server for each address
     let mut futures = Vec::new();
@@ -129,64 +168,7 @@ async fn start_atlas_server(
     addr: String,
     port: u16,
 ) -> ServerHandle {
-    let server = ServerBuilder::default()
-        .set_middleware(
-            tower::ServiceBuilder::new()
-                // Proxy `GET /health` requests to internal `health` method.
-                .layer(
-                    ProxyGetRequestLayer::new("/health", "health")
-                        .expect("expected health check to initialize"),
-                ),
-        )
-        .max_request_body_size(15_000_000)
-        .max_connections(10_000)
-        .build(format!("{}:{}", addr, port))
-        .await
-        .expect(format!("failed to start server on {}:{}", addr, port).as_str());
-
-    let tpu_connection_pool_size = env
-        .tpu_connection_pool_size
-        .unwrap_or(DEFAULT_TPU_CONNECTION_POOL_SIZE);
     let connection_cache;
-    if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
-        let identity_keypair =
-            read_keypair_file(identity_keypair_file).expect("keypair file must exist");
-        connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            "atlas-txn-sender",
-            tpu_connection_pool_size,
-            None, // created if none specified
-            Some((
-                &identity_keypair,
-                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
-            )),
-            None, // not used as far as I can tell
-        ));
-    } else {
-        let identity_keypair = Keypair::new();
-        connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            "atlas-txn-sender",
-            tpu_connection_pool_size,
-            None, // created if none specified
-            Some((
-                &identity_keypair,
-                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
-            )),
-            None, // not used as far as I can tell
-        ));
-    }
-
-    // test
-    let lt_clone = leader_tracker.clone();
-    loop {
-        let leaders = lt_clone.get_leaders();
-        let leader = leaders.get(0);
-        if leader.is_none() {
-            continue;
-        }
-        let leader = leader.unwrap();
-        let _ = connection_cache.get_nonblocking_connection(&leader.tpu_quic.unwrap());
-        info!("got connection to leader: {}", leader.tpu_quic.unwrap());
-    }
 
     let transaction_store = Arc::new(TransactionStoreImpl::new());
     let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
