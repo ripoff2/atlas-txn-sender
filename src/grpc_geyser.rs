@@ -173,12 +173,12 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
 impl<T: Interceptor + Send + Sync> SolanaRpc for GrpcGeyserImpl<T> {
     async fn confirm_transaction(&self, signature: String) -> Option<UnixTimestamp> {
         let start = Instant::now();
-        // in practice if a tx doesn't land in less than 60 seconds it's probably not going to land
-        while start.elapsed() < Duration::from_secs(60) {
+        // in practice if a tx doesn't land in less than 75 seconds it's probably not going to land
+        while start.elapsed() < Duration::from_secs(75) {
             if let Some(block_time) = self.signature_cache.get(&signature) {
                 return Some(block_time.0.clone());
             }
-            sleep(Duration::from_millis(200)).await;
+            sleep(Duration::from_millis(50)).await;
         }
         return None;
     }
