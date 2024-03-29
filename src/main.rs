@@ -11,6 +11,7 @@ mod vendor;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, UdpSocket},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -43,6 +44,7 @@ struct AtlasTxnSenderEnv {
     txn_sender_threads: Option<usize>,
     max_txn_send_retries: Option<usize>,
     txn_send_retry_interval: Option<usize>,
+    host_ip: Option<String>,
 }
 
 // Defualt on RPC is 4
@@ -90,7 +92,13 @@ async fn main() -> anyhow::Result<()> {
             "atlas-txn-sender",
             tpu_connection_pool_size,
             None, // created if none specified
-            Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
+            Some((
+                &identity_keypair,
+                IpAddr::V4(
+                    Ipv4Addr::from_str(&env.host_ip.unwrap_or("0.0.0.0".to_string()))
+                        .expect("invalid ipv4 address"),
+                ),
+            )),
             None, // not used as far as I can tell
         ));
     } else {
@@ -99,7 +107,13 @@ async fn main() -> anyhow::Result<()> {
             "atlas-txn-sender",
             tpu_connection_pool_size,
             None, // created if none specified
-            Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
+            Some((
+                &identity_keypair,
+                IpAddr::V4(
+                    Ipv4Addr::from_str(&env.host_ip.unwrap_or("0.0.0.0".to_string()))
+                        .expect("invalid ipv4 address"),
+                ),
+            )),
             None, // not used as far as I can tell
         ));
     }
