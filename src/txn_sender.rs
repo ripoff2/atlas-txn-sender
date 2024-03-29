@@ -151,6 +151,7 @@ impl TxnSenderImpl {
             .map(|m| m.api_key.clone())
             .unwrap_or("none".to_string());
         self.txn_sender_runtime.spawn(async move {
+            let confirmed_at = solana_rpc.confirm_transaction(signature.clone()).await;
             let (retries, max_retries) = transaction_store
                 .get_transactions()
                 .get(&signature)
@@ -158,8 +159,6 @@ impl TxnSenderImpl {
                 .unwrap_or((None, None));
             let retries_tag = bin_counter_to_tag(retries, &RETRY_COUNT_BINS.to_vec());
             let max_retries_tag: String = bin_counter_to_tag(max_retries, &MAX_RETRIES_BINS.to_vec());
-
-            let confirmed_at = solana_rpc.confirm_transaction(signature.clone()).await;
             transaction_store.remove_transaction(signature);
 
             // Collect metrics
