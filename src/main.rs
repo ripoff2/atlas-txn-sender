@@ -11,6 +11,7 @@ mod vendor;
 use std::{
     env,
     net::{IpAddr, Ipv4Addr, UdpSocket},
+    str::FromStr,
     sync::Arc,
 };
 
@@ -97,9 +98,9 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(vec![])
         .iter()
         .map(|s| s.to_string())
-        .filter(|s| s != "127.0.0.1" && s != "")
+        .filter(|s| s != "0.0.0.0" && s != "")
         .collect();
-    addrs.push("0.0.0.0".to_string());
+    addrs.push("127.0.0.1".to_string());
     addrs.dedup();
 
     // Start server for each address
@@ -154,7 +155,10 @@ async fn start_atlas_server(
             "atlas-txn-sender",
             tpu_connection_pool_size,
             None, // created if none specified
-            Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
+            Some((
+                &identity_keypair,
+                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
+            )),
             None, // not used as far as I can tell
         ));
     } else {
@@ -163,9 +167,25 @@ async fn start_atlas_server(
             "atlas-txn-sender",
             tpu_connection_pool_size,
             None, // created if none specified
-            Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
+            Some((
+                &identity_keypair,
+                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
+            )),
             None, // not used as far as I can tell
         ));
+    }
+
+    // test
+    let lt_clone = leader_tracker.clone();
+    loop {
+        let leaders = lt_clone.get_leaders();
+        let leader = leaders.get(0);
+        if leader.is_none() {
+            continue;
+        }
+        let leader = leader.unwrap();
+        let _ = connection_cache.get_nonblocking_connection(&leader.tpu_quic.unwrap());
+        info!("got connection to leader: {}", leader.tpu_quic.unwrap());
     }
 
     let transaction_store = Arc::new(TransactionStoreImpl::new());
