@@ -160,11 +160,11 @@ impl LeaderTracker for LeaderTrackerImpl {
                 break;
             }
         }
-        info!(
-            "leaders: {:?}, start_slot: {:?}",
-            leaders.clone().keys(),
-            start_slot
-        );
+        // info!(
+        //     "leaders: {:?}, start_slot: {:?}",
+        //     leaders.clone().keys(),
+        //     start_slot
+        // );
         leaders
             .values()
             .clone()
