@@ -109,17 +109,7 @@ impl TxnSenderImpl {
                                 if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
                                     if let Err(e) = result {
                                         if i == SEND_TXN_RETRIES-1 {
-                                            // error!(
-                                            //     retry = "true",
-                                            //     "Failed to send transaction batch to {:?}: {}",
-                                            //     leader, e
-                                            // );
                                         } else {
-                                            // warn!(
-                                            //     retry = "true",
-                                            //     "Retrying to send transaction batch to {:?}: {}",
-                                            //     leader, e
-                                            // );
                                         }
                                     } else {
                                         let leader_num_str = leader_num.to_string();
@@ -143,59 +133,59 @@ impl TxnSenderImpl {
             }
         });
     }
-    fn track_transaction(&self, transaction_data: &TransactionData) {
-        let sent_at = transaction_data.sent_at.clone();
-        let signature = get_signature(transaction_data);
-        if signature.is_none() {
-            return;
-        }
-        let signature = signature.unwrap();
-        self.transaction_store
-            .add_transaction(transaction_data.clone());
-        let PriorityDetails {
-            fee,
-            cu_limit,
-            priority,
-        } = compute_priority_details(&transaction_data.versioned_transaction);
-        let priority_fees_enabled = (fee > 0).to_string();
-        let solana_rpc = self.solana_rpc.clone();
-        let transaction_store = self.transaction_store.clone();
-        let api_key = transaction_data
-            .request_metadata
-            .clone()
-            .map(|m| m.api_key.clone())
-            .unwrap_or("none".to_string());
-        self.txn_sender_runtime.spawn(async move {
-            let confirmed_at = solana_rpc.confirm_transaction(signature.clone()).await;
-            let transcation_data = transaction_store.remove_transaction(signature);
-            let mut retries = None;
-            let mut max_retries = None;
-            if let Some(transaction_data) = transcation_data {
-                retries = Some(transaction_data.retry_count as i32);
-                max_retries = Some(transaction_data.max_retries as i32);
-            }
-
-            let retries_tag = bin_counter_to_tag(retries, &RETRY_COUNT_BINS.to_vec());
-            let max_retries_tag: String = bin_counter_to_tag(max_retries, &MAX_RETRIES_BINS.to_vec());
-
-            // Collect metrics
-            // We separate the retry metrics to reduce the cardinality with API key and price.
-            let landed = if let Some(confirmed_at) = confirmed_at {
-                statsd_count!("transactions_landed", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
-                statsd_count!("transactions_landed_by_key", 1, "api_key" => &api_key);
-                statsd_time!("transaction_land_time", sent_at.elapsed(), "api_key" => &api_key, "priority_fees_enabled" => &priority_fees_enabled);
-                "true"
-            } else {
-                statsd_count!("transactions_not_landed", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
-                statsd_count!("transactions_not_landed_by_key", 1, "api_key" => &api_key);
-                statsd_count!("transactions_not_landed_retries", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
-                "false"
-            };
-            statsd_time!("transaction_priority", priority, "landed" => &landed);
-            statsd_time!("transaction_priority_fee", fee, "landed" => &landed);
-            statsd_time!("transaction_compute_limit", cu_limit as u64, "landed" => &landed);
-        });
-    }
+    // fn track_transaction(&self, transaction_data: &TransactionData) {
+    //     let sent_at = transaction_data.sent_at.clone();
+    //     let signature = get_signature(transaction_data);
+    //     if signature.is_none() {
+    //         return;
+    //     }
+    //     let signature = signature.unwrap();
+    //     self.transaction_store
+    //         .add_transaction(transaction_data.clone());
+    //     let PriorityDetails {
+    //         fee,
+    //         cu_limit,
+    //         priority,
+    //     } = compute_priority_details(&transaction_data.versioned_transaction);
+    //     let priority_fees_enabled = (fee > 0).to_string();
+    //     let solana_rpc = self.solana_rpc.clone();
+    //     let transaction_store = self.transaction_store.clone();
+    //     let api_key = transaction_data
+    //         .request_metadata
+    //         .clone()
+    //         .map(|m| m.api_key.clone())
+    //         .unwrap_or("none".to_string());
+    //     self.txn_sender_runtime.spawn(async move {
+    //         let confirmed_at = solana_rpc.confirm_transaction(signature.clone()).await;
+    //         let transcation_data = transaction_store.remove_transaction(signature);
+    //         let mut retries = None;
+    //         let mut max_retries = None;
+    //         if let Some(transaction_data) = transcation_data {
+    //             retries = Some(transaction_data.retry_count as i32);
+    //             max_retries = Some(transaction_data.max_retries as i32);
+    //         }
+    //
+    //         let retries_tag = bin_counter_to_tag(retries, &RETRY_COUNT_BINS.to_vec());
+    //         let max_retries_tag: String = bin_counter_to_tag(max_retries, &MAX_RETRIES_BINS.to_vec());
+    //
+    //         // Collect metrics
+    //         // We separate the retry metrics to reduce the cardinality with API key and price.
+    //         let landed = if let Some(confirmed_at) = confirmed_at {
+    //             statsd_count!("transactions_landed", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
+    //             statsd_count!("transactions_landed_by_key", 1, "api_key" => &api_key);
+    //             statsd_time!("transaction_land_time", sent_at.elapsed(), "api_key" => &api_key, "priority_fees_enabled" => &priority_fees_enabled);
+    //             "true"
+    //         } else {
+    //             statsd_count!("transactions_not_landed", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
+    //             statsd_count!("transactions_not_landed_by_key", 1, "api_key" => &api_key);
+    //             statsd_count!("transactions_not_landed_retries", 1, "priority_fees_enabled" => &priority_fees_enabled, "retries" => &retries_tag, "max_retries_tag" => &max_retries_tag);
+    //             "false"
+    //         };
+    //         statsd_time!("transaction_priority", priority, "landed" => &landed);
+    //         statsd_time!("transaction_priority_fee", fee, "landed" => &landed);
+    //         statsd_time!("transaction_compute_limit", cu_limit as u64, "landed" => &landed);
+    //     });
+    // }
 }
 
 pub struct PriorityDetails {
@@ -248,7 +238,7 @@ pub fn compute_priority_details(transaction: &VersionedTransaction) -> PriorityD
 #[async_trait]
 impl TxnSender for TxnSenderImpl {
     fn send_transaction(&self, transaction_data: TransactionData) {
-        self.track_transaction(&transaction_data);
+        // self.track_transaction(&transaction_data);
         let api_key = transaction_data
             .request_metadata
             .map(|m| m.api_key)

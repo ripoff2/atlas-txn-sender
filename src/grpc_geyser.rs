@@ -29,7 +29,7 @@ use crate::utils::unix_to_time;
 pub struct GrpcGeyserImpl<T> {
     grpc_client: Arc<RwLock<GeyserGrpcClient<T>>>,
     cur_slot: Arc<AtomicU64>,
-    signature_cache: Arc<DashMap<String, (UnixTimestamp, Instant)>>,
+    // signature_cache: Arc<DashMap<String, (UnixTimestamp, Instant)>>,
 }
 
 impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
@@ -37,81 +37,81 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
         let grpc_geyser = Self {
             grpc_client,
             cur_slot: Arc::new(AtomicU64::new(0)),
-            signature_cache: Arc::new(DashMap::new()),
+            // signature_cache: Arc::new(DashMap::new()),
         };
         // polling with processed commitment to get latest leaders
         grpc_geyser.poll_slots();
         // polling with confirmed commitment to get confirmed transactions
-        grpc_geyser.poll_blocks();
-        grpc_geyser.clean_signature_cache();
+        // grpc_geyser.poll_blocks();
+        // grpc_geyser.clean_signature_cache();
         grpc_geyser
     }
 
-    fn clean_signature_cache(&self) {
-        let signature_cache = self.signature_cache.clone();
-        tokio::spawn(async move {
-            loop {
-                let signature_cache = signature_cache.clone();
-                signature_cache.retain(|_, (_, v)| v.elapsed().as_secs() < 90);
-                sleep(Duration::from_secs(60)).await;
-            }
-        });
-    }
+    // fn clean_signature_cache(&self) {
+    //     let signature_cache = self.signature_cache.clone();
+    //     tokio::spawn(async move {
+    //         loop {
+    //             let signature_cache = signature_cache.clone();
+    //             signature_cache.retain(|_, (_, v)| v.elapsed().as_secs() < 90);
+    //             sleep(Duration::from_secs(60)).await;
+    //         }
+    //     });
+    // }
 
-    fn poll_blocks(&self) {
-        let grpc_client = self.grpc_client.clone();
-        let signature_cache = self.signature_cache.clone();
-        tokio::spawn(async move {
-            loop {
-                let mut grpc_tx;
-                let mut grpc_rx;
-                {
-                    let mut grpc_client = grpc_client.write().await;
-                    let subscription = grpc_client
-                        .subscribe_with_request(Some(get_block_subscribe_request()))
-                        .await;
-                    if let Err(e) = subscription {
-                        error!("Error subscribing to gRPC stream, waiting one second then retrying connect: {}", e);
-                        sleep(Duration::from_secs(1)).await;
-                        continue;
-                    }
-                    (grpc_tx, grpc_rx) = subscription.unwrap();
-                }
-                while let Some(message) = grpc_rx.next().await {
-                    match message {
-                        Ok(message) => match message.update_oneof {
-                            Some(UpdateOneof::Block(block)) => {
-                                let block_time = block.block_time.unwrap().timestamp;
-                                for transaction in block.transactions {
-                                    let signature =
-                                        Signature::new(&transaction.signature).to_string();
-                                    signature_cache.insert(signature, (block_time, Instant::now()));
-                                }
-                            }
-                            Some(UpdateOneof::Ping(_)) => {
-                                // This is necessary to keep load balancers that expect client pings alive. If your load balancer doesn't
-                                // require periodic client pings then this is unnecessary
-                                let ping = grpc_tx.send(ping()).await;
-                                if let Err(e) = ping {
-                                    error!("Error sending ping: {}", e);
-                                    statsd_count!("grpc_ping_error", 1);
-                                    break;
-                                }
-                            }
-                            Some(UpdateOneof::Pong(_)) => {}
-                            _ => {
-                                error!("Unknown message: {:?}", message);
-                            }
-                        },
-                        Err(error) => {
-                            error!("error in txn subscribe, resubscribing in 1 second: {error:?}");
-                            sleep(Duration::from_secs(1)).await;
-                        }
-                    }
-                }
-            }
-        });
-    }
+    // fn poll_blocks(&self) {
+    //     let grpc_client = self.grpc_client.clone();
+    //     let signature_cache = self.signature_cache.clone();
+    //     tokio::spawn(async move {
+    //         loop {
+    //             let mut grpc_tx;
+    //             let mut grpc_rx;
+    //             {
+    //                 let mut grpc_client = grpc_client.write().await;
+    //                 let subscription = grpc_client
+    //                     .subscribe_with_request(Some(get_block_subscribe_request()))
+    //                     .await;
+    //                 if let Err(e) = subscription {
+    //                     error!("Error subscribing to gRPC stream, waiting one second then retrying connect: {}", e);
+    //                     sleep(Duration::from_secs(1)).await;
+    //                     continue;
+    //                 }
+    //                 (grpc_tx, grpc_rx) = subscription.unwrap();
+    //             }
+    //             while let Some(message) = grpc_rx.next().await {
+    //                 match message {
+    //                     Ok(message) => match message.update_oneof {
+    //                         Some(UpdateOneof::Block(block)) => {
+    //                             let block_time = block.block_time.unwrap().timestamp;
+    //                             for transaction in block.transactions {
+    //                                 let signature =
+    //                                     Signature::new(&transaction.signature).to_string();
+    //                                 signature_cache.insert(signature, (block_time, Instant::now()));
+    //                             }
+    //                         }
+    //                         Some(UpdateOneof::Ping(_)) => {
+    //                             // This is necessary to keep load balancers that expect client pings alive. If your load balancer doesn't
+    //                             // require periodic client pings then this is unnecessary
+    //                             let ping = grpc_tx.send(ping()).await;
+    //                             if let Err(e) = ping {
+    //                                 error!("Error sending ping: {}", e);
+    //                                 statsd_count!("grpc_ping_error", 1);
+    //                                 break;
+    //                             }
+    //                         }
+    //                         Some(UpdateOneof::Pong(_)) => {}
+    //                         _ => {
+    //                             error!("Unknown message: {:?}", message);
+    //                         }
+    //                     },
+    //                     Err(error) => {
+    //                         error!("error in txn subscribe, resubscribing in 1 second: {error:?}");
+    //                         sleep(Duration::from_secs(1)).await;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     });
+    // }
 
     fn poll_slots(&self) {
         let grpc_client = self.grpc_client.clone();
