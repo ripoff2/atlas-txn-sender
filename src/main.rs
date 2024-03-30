@@ -143,7 +143,7 @@ async fn main() -> anyhow::Result<()> {
 
     let max_txn_send_retries = env.max_txn_send_retries.unwrap_or(5);
     let atlas_txn_sender =
-        AtlasTxnSenderImpl::new(txn_sender, transaction_store, max_txn_send_retries);
+        AtlasTxnSenderImpl::new(txn_sender,max_txn_send_retries);
     let handle = server.start(atlas_txn_sender.into_rpc());
     info!("collecting metrics on: {}", port);
     info!("tnx-sender-cfg: num_leaders={}, leader_offset={}, txn_sender_threads={}, max_txn_send_retries={}, txn_send_retry_interval={}",
