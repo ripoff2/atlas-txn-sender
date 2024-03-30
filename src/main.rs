@@ -23,6 +23,7 @@ use futures::future::join_all;
 use grpc_geyser::GrpcGeyserImpl;
 use jsonrpsee::server::{middleware::ProxyGetRequestLayer, Server, ServerBuilder, ServerHandle};
 use leader_tracker::{LeaderTracker, LeaderTrackerImpl};
+use multi_cache::MultiCache;
 use rpc_server::{AtlasTxnSenderImpl, AtlasTxnSenderServer};
 use serde::Deserialize;
 use solana_client::{connection_cache::ConnectionCache, rpc_client::RpcClient};
@@ -98,6 +99,7 @@ async fn main() -> anyhow::Result<()> {
         .unwrap_or(DEFAULT_TPU_CONNECTION_POOL_SIZE);
 
     let port = env.port.unwrap_or(4040);
+    let host_addr = env_clone.host_addr.unwrap_or("0.0.0.0".to_string());
     let mut addrs: Vec<String> = env_clone
         .extra_addrs
         .unwrap_or(vec![])
@@ -105,27 +107,43 @@ async fn main() -> anyhow::Result<()> {
         .map(|s| s.to_string())
         .filter(|s| s != "0.0.0.0" && s != "")
         .collect();
-    addrs.push(env_clone.host_addr.unwrap_or("0.0.0.0".to_string()));
+    addrs.push(host_addr);
     addrs.dedup();
 
-    let connection_caches = addrs.iter().map(|addr| {
-        let keypair = if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
-            read_keypair_file(identity_keypair_file).expect("keypair file must exist");
-        } else {
-            Keypair::new();
-        };
-        let connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            "atlas-txn-sender",
-            tpu_connection_pool_size,
-            None, // created if none specified
-            Some((
-                &keypair,
-                IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
-            )),
-            None, // not used as far as I can tell
-        ));
-        return connection_cache;
-    });
+    let connection_caches: Vec<ConnectionCache> = addrs
+        .iter()
+        .map(|addr| {
+            let keypair = if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
+                read_keypair_file(identity_keypair_file).expect("keypair file must exist")
+            } else {
+                Keypair::new()
+            };
+            let connection_cache = ConnectionCache::new_with_client_options(
+                "atlas-txn-sender",
+                tpu_connection_pool_size,
+                None, // created if none specified
+                Some((
+                    &keypair,
+                    IpAddr::V4(Ipv4Addr::from_str(&addr).expect("addr was not valid ipv4")),
+                )),
+                None, // not used as far as I can tell
+            );
+            return connection_cache;
+        })
+        .collect();
+    let multi_cache = Arc::new(MultiCache::new(connection_caches));
+    let transaction_store = Arc::new(TransactionStoreImpl::new());
+    let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
+    let txn_sender = Arc::new(TxnSenderImpl::new(
+        leader_tracker,
+        transaction_store,
+        multi_cache,
+        solana_rpc,
+        env.txn_sender_threads.unwrap_or(1),
+        txn_send_retry_interval_seconds,
+    ));
+    let max_txn_send_retries = env.max_txn_send_retries.unwrap_or(5);
+    let atlas_txn_sender = AtlasTxnSenderImpl::new(txn_sender, max_txn_send_retries);
 
     let server = ServerBuilder::default()
         .set_middleware(
@@ -138,53 +156,14 @@ async fn main() -> anyhow::Result<()> {
         )
         .max_request_body_size(15_000_000)
         .max_connections(10_000)
-        .build(format!("{}:{}", addr, port))
+        .build(format!("0.0.0.0:{}", port))
         .await
-        .expect(format!("failed to start server on {}:{}", addr, port).as_str());
+        .expect(format!("failed to start server on port {}", port).as_str());
 
-    // Start server for each address
-    let mut futures = Vec::new();
-    for (i, addr) in addrs.iter().enumerate() {
-        println!("starting server on: {}", addr);
-        let server_handle = start_atlas_server(
-            env.clone(),
-            leader_tracker.clone(),
-            solana_rpc.clone(),
-            addr.to_string(),
-            port + i as u16,
-        )
-        .await;
-        futures.push(server_handle.stopped());
-    }
-    join_all(futures).await;
+    let handle = server.start(atlas_txn_sender.into_rpc());
+    handle.stopped().await;
 
     Ok(())
-}
-
-async fn start_atlas_server(
-    env: AtlasTxnSenderEnv,
-    leader_tracker: Arc<dyn LeaderTracker>,
-    solana_rpc: Arc<dyn SolanaRpc>,
-    addr: String,
-    port: u16,
-) -> ServerHandle {
-    let connection_cache;
-
-    let transaction_store = Arc::new(TransactionStoreImpl::new());
-    let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
-    let txn_sender = Arc::new(TxnSenderImpl::new(
-        leader_tracker,
-        transaction_store,
-        connection_cache,
-        solana_rpc,
-        env.txn_sender_threads.unwrap_or(1),
-        txn_send_retry_interval_seconds,
-    ));
-    let max_txn_send_retries = env.max_txn_send_retries.unwrap_or(5);
-    let atlas_txn_sender = AtlasTxnSenderImpl::new(txn_sender, max_txn_send_retries, addr.clone());
-
-    info!("starting server on {}:{}", addr, port);
-    server.start(atlas_txn_sender.into_rpc())
 }
 
 fn new_metrics_client() {

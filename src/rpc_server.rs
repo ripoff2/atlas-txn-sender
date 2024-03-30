@@ -45,16 +45,14 @@ pub trait AtlasTxnSender {
 
 pub struct AtlasTxnSenderImpl {
     txn_sender: Arc<dyn TxnSender>,
-    addr: String,
     max_txn_send_retries: usize,
 }
 
 impl AtlasTxnSenderImpl {
-    pub fn new(txn_sender: Arc<dyn TxnSender>, max_txn_send_retries: usize, addr: String) -> Self {
+    pub fn new(txn_sender: Arc<dyn TxnSender>, max_txn_send_retries: usize) -> Self {
         Self {
             txn_sender,
             max_txn_send_retries,
-            addr,
         }
     }
 }
@@ -76,7 +74,6 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
             .map(|m| m.api_key)
             .unwrap_or("none".to_string());
         statsd_count!("send_transaction", 1, "api_key" => &api_key);
-        statsd_count!("send_transaction_by_addr", 1, "addr" => &self.addr);
         validate_send_transaction_params(&params)?;
         let start = Instant::now();
         let encoding = params.encoding.unwrap_or(UiTransactionEncoding::Base58);
@@ -123,22 +120,4 @@ fn validate_send_transaction_params(
         return Err(invalid_request("running preflight check is not supported"));
     }
     Ok(())
-}
-
-fn param<T: FromStr>(param_str: &str, thing: &str) -> Result<T, ErrorObjectOwned> {
-    param_str.parse::<T>().map_err(|_e| {
-        ErrorObjectOwned::owned(
-            INVALID_PARAMS_CODE,
-            format!("Invalid Request: Invalid {thing} provided"),
-            None::<String>,
-        )
-    })
-}
-
-fn log_error<T: Debug>(metric: &str) -> impl Fn(T) -> T {
-    let metric = metric.to_string();
-    return move |e: T| -> T {
-        error!(metric = metric, "{:?}", e);
-        e
-    };
 }
