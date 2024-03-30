@@ -173,23 +173,27 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
 
 #[async_trait]
 impl<T: Interceptor + Send + Sync> SolanaRpc for GrpcGeyserImpl<T> {
-    async fn confirm_transaction(&self, signature: String) -> Option<UnixTimestamp> {
-        let start = Instant::now();
-        // in practice if a tx doesn't land in less than 60 seconds it's probably not going to land
-        while start.elapsed() < Duration::from_secs(60) {
-            if let Some(block_time) = self.signature_cache.get(&signature) {
-                return Some(block_time.0.clone());
-            }
-            sleep(Duration::from_millis(200)).await;
-        }
-        return None;
-    }
+    // async fn confirm_transaction(&self, signature: String) -> Option<UnixTimestamp> {
+    //     let start = Instant::now();
+    //     // in practice if a tx doesn't land in less than 60 seconds it's probably not going to land
+    //     while start.elapsed() < Duration::from_secs(60) {
+    //         if let Some(block_time) = self.signature_cache.get(&signature) {
+    //             return Some(block_time.0.clone());
+    //         }
+    //         sleep(Duration::from_millis(200)).await;
+    //     }
+    //     return None;
+    // }
     fn get_next_slot(&self) -> Option<u64> {
         let cur_slot = self.cur_slot.load(Ordering::Relaxed);
         if cur_slot == 0 {
             return None;
         }
         Some(cur_slot)
+    }
+
+    async fn confirm_transaction(&self, signatures: String) -> Option<UnixTimestamp> {
+        todo!()
     }
 }
 
