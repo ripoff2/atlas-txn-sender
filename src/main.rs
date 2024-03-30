@@ -130,13 +130,14 @@ async fn main() -> anyhow::Result<()> {
         leader_offset,
     ));
 
+    let txn_sender_threads = env.txn_sender_threads.unwrap_or(4);
     let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
     let txn_sender = Arc::new(TxnSenderImpl::new(
         leader_tracker,
         transaction_store.clone(),
         connection_cache,
         solana_rpc,
-        env.txn_sender_threads.unwrap_or(4),
+        txn_sender_threads,
         txn_send_retry_interval_seconds,
     ));
 
@@ -145,6 +146,13 @@ async fn main() -> anyhow::Result<()> {
         AtlasTxnSenderImpl::new(txn_sender, transaction_store, max_txn_send_retries);
     let handle = server.start(atlas_txn_sender.into_rpc());
     info!("collecting metrics on: {}", port);
+    info!("tnx-sender-cfg: num_leaders={}, leader_offset={}, txn_sender_threads={}, max_txn_send_retries={}, txn_send_retry_interval={}",
+        num_leaders,
+        leader_offset,
+        txn_sender_threads,
+        max_txn_send_retries,
+        txn_send_retry_interval_seconds,
+    );
     handle.stopped().await;
     Ok(())
 }
