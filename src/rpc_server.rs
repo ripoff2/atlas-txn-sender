@@ -19,7 +19,7 @@ use tracing::error;
 
 use crate::{
     errors::invalid_request,
-    transaction_store::{TransactionData, TransactionStore},
+    // transaction_store::{TransactionData, TransactionStore},
     txn_sender::TxnSender,
     vendor::solana_rpc::decode_and_deserialize,
 };
@@ -47,20 +47,20 @@ pub trait AtlasTxnSender {
 
 pub struct AtlasTxnSenderImpl {
     txn_sender: Arc<dyn TxnSender>,
-    transaction_store: Arc<dyn TransactionStore>,
+    // transaction_store: Arc<dyn TransactionStore>,
     max_txn_send_retries: usize,
 }
 
 impl AtlasTxnSenderImpl {
     pub fn new(
         txn_sender: Arc<dyn TxnSender>,
-        transaction_store: Arc<dyn TransactionStore>,
+        // transaction_store: Arc<dyn TransactionStore>,
         max_txn_send_retries: usize,
     ) -> Self {
         Self {
             txn_sender,
             max_txn_send_retries,
-            transaction_store,
+            // transaction_store,
         }
     }
 }
@@ -100,10 +100,10 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
                 }
             };
         let signature = versioned_transaction.signatures[0].to_string();
-        if self.transaction_store.has_signature(&signature) {
-            statsd_count!("duplicate_transaction", 1, "api_key" => &api_key);
-            return Ok(signature);
-        }
+        // if self.transaction_store.has_signature(&signature) {
+        //     statsd_count!("duplicate_transaction", 1, "api_key" => &api_key);
+        //     return Ok(signature);
+        // }
         let transaction = TransactionData {
             wire_transaction,
             versioned_transaction,

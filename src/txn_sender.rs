@@ -17,7 +17,7 @@ use tonic::async_trait;
 use crate::{
     leader_tracker::LeaderTracker,
     solana_rpc::SolanaRpc,
-    transaction_store::{get_signature, TransactionData, TransactionStore},
+    transaction_store::{get_signature, TransactionData},
 };
 use solana_program_runtime::compute_budget::DEFAULT_INSTRUCTION_COMPUTE_UNIT_LIMIT;
 use solana_sdk::borsh0_10::try_from_slice_unchecked;
@@ -36,7 +36,7 @@ pub trait TxnSender: Send + Sync {
 
 pub struct TxnSenderImpl {
     leader_tracker: Arc<dyn LeaderTracker>,
-    transaction_store: Arc<dyn TransactionStore>,
+    // transaction_store: Arc<dyn TransactionStore>,
     connection_cache: Arc<ConnectionCache>,
     solana_rpc: Arc<dyn SolanaRpc>,
     txn_sender_runtime: Arc<Runtime>,
@@ -46,7 +46,7 @@ pub struct TxnSenderImpl {
 impl TxnSenderImpl {
     pub fn new(
         leader_tracker: Arc<dyn LeaderTracker>,
-        transaction_store: Arc<dyn TransactionStore>,
+        // transaction_store: Arc<dyn TransactionStore>,
         connection_cache: Arc<ConnectionCache>,
         solana_rpc: Arc<dyn SolanaRpc>,
         txn_sender_threads: usize,
@@ -59,80 +59,80 @@ impl TxnSenderImpl {
             .unwrap();
         let txn_sender = Self {
             leader_tracker,
-            transaction_store,
+            // transaction_store,
             connection_cache,
             solana_rpc,
             txn_sender_runtime: Arc::new(txn_sender_runtime),
             txn_send_retry_interval_seconds,
         };
-        txn_sender.retry_transactions();
+        // txn_sender.retry_transactions();
         txn_sender
     }
 
-    fn retry_transactions(&self) {
-        let leader_tracker = self.leader_tracker.clone();
-        let transaction_store = self.transaction_store.clone();
-        let connection_cache = self.connection_cache.clone();
-        let txn_sender_runtime = self.txn_sender_runtime.clone();
-        let txn_send_retry_interval_seconds = self.txn_send_retry_interval_seconds.clone();
-        tokio::spawn(async move {
-            loop {
-                let mut transactions_reached_max_retries = vec![];
-                let transactions = transaction_store.get_transactions();
-                statsd_gauge!("transaction_retry_queue_length", transactions.len() as u64);
-
-                let mut wire_transactions = vec![];
-                for mut transaction_data in transactions.iter_mut() {
-                    wire_transactions.push(transaction_data.wire_transaction.clone());
-                    if transaction_data.retry_count >= transaction_data.max_retries {
-                        transactions_reached_max_retries
-                            .push(get_signature(&transaction_data).unwrap());
-                    } else {
-                        transaction_data.retry_count += 1;
-                    }
-                }
-                let mut leader_num = 0;
-                for leader in leader_tracker.get_leaders() {
-                    if leader.tpu_quic.is_none() {
-                        // error!("leader {:?} has no tpu_quic", leader);
-                        continue;
-                    }
-                    let connection_cache = connection_cache.clone();
-                    let sent_at = Instant::now();
-                    let leader = Arc::new(leader.clone());
-                    let wire_transactions = wire_transactions.clone();
-                    txn_sender_runtime.spawn(async move {
-                            // retry unless its a timeout
-                            for i in 0..SEND_TXN_RETRIES {
-                                let conn = connection_cache
-                                    .get_nonblocking_connection(&leader.tpu_quic.unwrap());
-                                if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
-                                    if let Err(e) = result {
-                                        if i == SEND_TXN_RETRIES-1 {
-                                        } else {
-                                        }
-                                    } else {
-                                        let leader_num_str = leader_num.to_string();
-                                        statsd_time!(
-                                            "transaction_received_by_leader",
-                                            sent_at.elapsed(), "leader_num" => &leader_num_str, "api_key" => "not_applicable", "retry" => "true");
-                                        return;
-                                    }
-                                }
-                                statsd_count!("transaction_send_error", 1);
-                            }
-                        });
-                    leader_num += 1;
-                }
-                // remove transactions that reached max retries
-                for signature in transactions_reached_max_retries {
-                    let _ = transaction_store.remove_transaction(signature);
-                    statsd_count!("transactions_reached_max_retries", 1);
-                }
-                sleep(Duration::from_secs(txn_send_retry_interval_seconds as u64)).await;
-            }
-        });
-    }
+    // fn retry_transactions(&self) {
+    //     let leader_tracker = self.leader_tracker.clone();
+    //     let transaction_store = self.transaction_store.clone();
+    //     let connection_cache = self.connection_cache.clone();
+    //     let txn_sender_runtime = self.txn_sender_runtime.clone();
+    //     let txn_send_retry_interval_seconds = self.txn_send_retry_interval_seconds.clone();
+    //     tokio::spawn(async move {
+    //         loop {
+    //             let mut transactions_reached_max_retries = vec![];
+    //             let transactions = transaction_store.get_transactions();
+    //             statsd_gauge!("transaction_retry_queue_length", transactions.len() as u64);
+    //
+    //             let mut wire_transactions = vec![];
+    //             for mut transaction_data in transactions.iter_mut() {
+    //                 wire_transactions.push(transaction_data.wire_transaction.clone());
+    //                 if transaction_data.retry_count >= transaction_data.max_retries {
+    //                     transactions_reached_max_retries
+    //                         .push(get_signature(&transaction_data).unwrap());
+    //                 } else {
+    //                     transaction_data.retry_count += 1;
+    //                 }
+    //             }
+    //             let mut leader_num = 0;
+    //             for leader in leader_tracker.get_leaders() {
+    //                 if leader.tpu_quic.is_none() {
+    //                     // error!("leader {:?} has no tpu_quic", leader);
+    //                     continue;
+    //                 }
+    //                 let connection_cache = connection_cache.clone();
+    //                 let sent_at = Instant::now();
+    //                 let leader = Arc::new(leader.clone());
+    //                 let wire_transactions = wire_transactions.clone();
+    //                 txn_sender_runtime.spawn(async move {
+    //                         // retry unless its a timeout
+    //                         for i in 0..SEND_TXN_RETRIES {
+    //                             let conn = connection_cache
+    //                                 .get_nonblocking_connection(&leader.tpu_quic.unwrap());
+    //                             if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
+    //                                 if let Err(e) = result {
+    //                                     if i == SEND_TXN_RETRIES-1 {
+    //                                     } else {
+    //                                     }
+    //                                 } else {
+    //                                     let leader_num_str = leader_num.to_string();
+    //                                     statsd_time!(
+    //                                         "transaction_received_by_leader",
+    //                                         sent_at.elapsed(), "leader_num" => &leader_num_str, "api_key" => "not_applicable", "retry" => "true");
+    //                                     return;
+    //                                 }
+    //                             }
+    //                             statsd_count!("transaction_send_error", 1);
+    //                         }
+    //                     });
+    //                 leader_num += 1;
+    //             }
+    //             // remove transactions that reached max retries
+    //             for signature in transactions_reached_max_retries {
+    //                 let _ = transaction_store.remove_transaction(signature);
+    //                 statsd_count!("transactions_reached_max_retries", 1);
+    //             }
+    //             sleep(Duration::from_secs(txn_send_retry_interval_seconds as u64)).await;
+    //         }
+    //     });
+    // }
     // fn track_transaction(&self, transaction_data: &TransactionData) {
     //     let sent_at = transaction_data.sent_at.clone();
     //     let signature = get_signature(transaction_data);

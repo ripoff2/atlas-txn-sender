@@ -115,7 +115,7 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     ));
 
-    let transaction_store = Arc::new(TransactionStoreImpl::new());
+    // let transaction_store = Arc::new(TransactionStoreImpl::new());
 
     let solana_rpc = Arc::new(GrpcGeyserImpl::new(client));
 
@@ -134,7 +134,7 @@ async fn main() -> anyhow::Result<()> {
     let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
     let txn_sender = Arc::new(TxnSenderImpl::new(
         leader_tracker,
-        transaction_store.clone(),
+        // transaction_store.clone(),
         connection_cache,
         solana_rpc,
         txn_sender_threads,
