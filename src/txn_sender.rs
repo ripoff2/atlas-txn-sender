@@ -13,7 +13,6 @@ use tokio::{
     time::{error::Elapsed, sleep, timeout},
 };
 use tonic::async_trait;
-use tracing::{error, info, warn};
 
 use crate::{
     leader_tracker::LeaderTracker,
@@ -95,7 +94,7 @@ impl TxnSenderImpl {
                 let mut leader_num = 0;
                 for leader in leader_tracker.get_leaders() {
                     if leader.tpu_quic.is_none() {
-                        error!("leader {:?} has no tpu_quic", leader);
+                        // error!("leader {:?} has no tpu_quic", leader);
                         continue;
                     }
                     let connection_cache = connection_cache.clone();
@@ -110,17 +109,17 @@ impl TxnSenderImpl {
                                 if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
                                     if let Err(e) = result {
                                         if i == SEND_TXN_RETRIES-1 {
-                                            error!(
-                                                retry = "true",
-                                                "Failed to send transaction batch to {:?}: {}",
-                                                leader, e
-                                            );
+                                            // error!(
+                                            //     retry = "true",
+                                            //     "Failed to send transaction batch to {:?}: {}",
+                                            //     leader, e
+                                            // );
                                         } else {
-                                            warn!(
-                                                retry = "true",
-                                                "Retrying to send transaction batch to {:?}: {}",
-                                                leader, e
-                                            );
+                                            // warn!(
+                                            //     retry = "true",
+                                            //     "Retrying to send transaction batch to {:?}: {}",
+                                            //     leader, e
+                                            // );
                                         }
                                     } else {
                                         let leader_num_str = leader_num.to_string();
@@ -257,7 +256,7 @@ impl TxnSender for TxnSenderImpl {
         let mut leader_num = 0;
         for leader in self.leader_tracker.get_leaders() {
             if leader.tpu_quic.is_none() {
-                error!("leader {:?} has no tpu_quic", leader);
+                // error!("leader {:?} has no tpu_quic", leader);
                 continue;
             }
             let connection_cache = self.connection_cache.clone();
@@ -270,17 +269,17 @@ impl TxnSender for TxnSenderImpl {
                     if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA, conn.send_data(&wire_transaction)).await {
                         if let Err(e) = result {
                             if i == SEND_TXN_RETRIES-1 {
-                                error!(
-                                    retry = "false",
-                                    "Failed to send transaction to {:?}: {}",
-                                    leader, e
-                                );
+                                // error!(
+                                //     retry = "false",
+                                //     "Failed to send transaction to {:?}: {}",
+                                //     leader, e
+                                // );
                             } else {
-                                warn!(
-                                    retry = "false",
-                                    "Retrying to send transaction to {:?}: {}",
-                                    leader, e
-                                );
+                                // warn!(
+                                //     retry = "false",
+                                //     "Retrying to send transaction to {:?}: {}",
+                                //     leader, e
+                                // );
                             }
                         } else {
                             let leader_num_str = leader_num.to_string();

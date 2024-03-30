@@ -85,7 +85,7 @@ impl LeaderTrackerImpl {
                     sleep(Duration::from_secs(1)).await;
                     continue;
                 }
-                statsd_time!("poll_slot_leaders", start.elapsed());
+                // statsd_time!("poll_slot_leaders", start.elapsed());
                 sleep(Duration::from_secs(60)).await;
             }
         });

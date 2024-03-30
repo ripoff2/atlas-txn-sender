@@ -6,15 +6,23 @@ This package uses the min required dependencies to send transactions to Solana l
 
 The service has the following envs:
 
+`RUST_LOG` - Log level for the service. Default is `info`
+
 `RPC_URL` - RPC url used to fetch next leaders with `getSlotLeaders`
 
 `GRPC_URL` - Yellowstone GRPC Geyser url used to stream latest slots and blocks. Slots tell us what to call `getSlotLeaders` with, blocks tell us if the txns we've sent were sent successfully.
 
 `X_TOKEN` - token used to authenticate with the grpc url
 
-`TPU_CONNECTION_POOL_SIZE` - Number of leaders to cache connections to, and send transactions to. The default in the solana client is 4.
+`TPU_CONNECTION_POOL_SIZE` - Number of leaders to cache connections to, and send transactions to. Default (5)
 
-`NUM_LEADERS` - Number of leaders to send transactions to
+`TXN_SEND_RETRY_INTERVAL` - Interval to retry sending transactions (in seconds)
+
+`NUM_LEADERS` - Number of leaders to send transactions to (Default 5)
+
+`TXN_SENDER_THREADS` - Number of threads to send transactions with. Default is 4
+
+`MAX_TXN_SEND_RETRIES` - Number of times to retry sending a transaction before giving up. Default is 5
 
 `LEADER_OFFSET` - Offset of the leader schedule. Default is 0. 
 

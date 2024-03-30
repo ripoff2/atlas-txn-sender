@@ -72,7 +72,6 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
                         .await;
                     if let Err(e) = subscription {
                         error!("Error subscribing to gRPC stream, waiting one second then retrying connect: {}", e);
-                        statsd_count!("grpc_subscribe_error", 1);
                         sleep(Duration::from_secs(1)).await;
                         continue;
                     }
@@ -127,12 +126,15 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
                     let subscription = grpc_client.subscribe().await;
                     if let Err(e) = subscription {
                         error!("Error subscribing to gRPC stream, waiting one second then retrying connect: {}", e);
-                        statsd_count!("grpc_subscribe_error", 1);
+                        // statsd_count!("grpc_subscribe_error", 1);
                         sleep(Duration::from_secs(1)).await;
                         continue;
                     }
                     (grpc_tx, grpc_rx) = subscription.unwrap();
+                    
                 }
+
+                info!("gRPC stream connected");
                 grpc_tx.send(get_slot_subscribe_request()).await.unwrap();
                 while let Some(message) = grpc_rx.next().await {
                     match message {

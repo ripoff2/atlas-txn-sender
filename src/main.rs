@@ -45,8 +45,7 @@ struct AtlasTxnSenderEnv {
     txn_send_retry_interval: Option<usize>,
 }
 
-// Defualt on RPC is 4
-pub const DEFAULT_TPU_CONNECTION_POOL_SIZE: usize = 4;
+pub const DEFAULT_TPU_CONNECTION_POOL_SIZE: usize = 5;
 
 #[cfg(not(target_env = "msvc"))]
 use tikv_jemallocator::Jemalloc;
@@ -56,15 +55,20 @@ static GLOBAL: Jemalloc = Jemalloc;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    // Init metrics/logging
+    // // Init metrics/logging
     let env: AtlasTxnSenderEnv = Figment::from(Env::raw()).extract().unwrap();
+
     let env_filter = env::var("RUST_LOG")
         .or::<Result<String, ()>>(Ok("info".to_string()))
         .unwrap();
+
+    // Log to stdout
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
         .json()
         .init();
+
+    // Metrics
     new_metrics_client();
 
     let service_builder = tower::ServiceBuilder::new()
@@ -104,14 +108,20 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
 
+    let grpcURL = env.grpc_url.clone();
+    info!("connecting to gRPC server: {}", grpcURL.unwrap());
     let client = Arc::new(RwLock::new(
-        GeyserGrpcClient::connect::<String, String>(env.grpc_url.unwrap(), env.x_token, None)
+        GeyserGrpcClient::connect::<String, String>(env.grpc_url.unwrap(), env.x_token,None)
             .unwrap(),
     ));
+
     let transaction_store = Arc::new(TransactionStoreImpl::new());
+
     let solana_rpc = Arc::new(GrpcGeyserImpl::new(client));
+
     let rpc_client = Arc::new(RpcClient::new(env.rpc_url.unwrap()));
-    let num_leaders = env.num_leaders.unwrap_or(2);
+
+    let num_leaders = env.num_leaders.unwrap_or(5);
     let leader_offset = env.leader_offset.unwrap_or(0);
     let leader_tracker = Arc::new(LeaderTrackerImpl::new(
         rpc_client,
@@ -119,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         num_leaders,
         leader_offset,
     ));
+
     let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
     let txn_sender = Arc::new(TxnSenderImpl::new(
         leader_tracker,
@@ -128,10 +139,12 @@ async fn main() -> anyhow::Result<()> {
         env.txn_sender_threads.unwrap_or(4),
         txn_send_retry_interval_seconds,
     ));
+
     let max_txn_send_retries = env.max_txn_send_retries.unwrap_or(5);
     let atlas_txn_sender =
         AtlasTxnSenderImpl::new(txn_sender, transaction_store, max_txn_send_retries);
     let handle = server.start(atlas_txn_sender.into_rpc());
+    info!("collecting metrics on: {}", port);
     handle.stopped().await;
     Ok(())
 }
