@@ -219,8 +219,8 @@ impl TxnSender for TxnSenderImpl {
                                 // );
                             }
                         } else {
-                            let leader_num_str = leader_num.to_string();
-                            info!("transaction received by leader {:?}", leader_num_str);
+                            // let leader_num_str = leader_num.to_string();
+                            // info!("transaction received by leader {:?}", leader_num_str);
                             return;
                         }
                     }
