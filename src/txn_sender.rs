@@ -85,7 +85,7 @@ impl TxnSenderImpl {
                     sleep(Duration::from_millis(1)).await;
                     continue;
                 }
-                // info!("retrying transactions {:?}", queue_len);
+                info!("retrying transactions {:?}", queue_len);
                 let mut wire_transactions = vec![];
                 for mut transaction_data in transactions.iter_mut() {
                     // info!("retrying transaction {:?}", transaction_data.versioned_transaction.signatures[0]);
