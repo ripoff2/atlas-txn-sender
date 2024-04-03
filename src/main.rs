@@ -89,7 +89,7 @@ async fn main() -> anyhow::Result<()> {
         let identity_keypair =
             read_keypair_file(identity_keypair_file).expect("keypair file must exist");
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            client_name,
+            client_name.clone(),
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let identity_keypair = Keypair::new();
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            client_name,
+            client_name.clone(),
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
