@@ -80,7 +80,12 @@ impl TxnSenderImpl {
             loop {
                 let mut transactions_reached_max_retries = vec![];
                 let transactions = transaction_store.get_transactions();
-                info!("retrying transactions {:?}", transactions.len());
+                let queue_len = transactions.len();
+                info!("retrying transactions {:?}", queue_len);
+                if queue_len == 0 {
+                    sleep(Duration::from_millis(1)).await;
+                    continue;
+                }
 
                 let mut wire_transactions = vec![];
                 for mut transaction_data in transactions.iter_mut() {
@@ -100,12 +105,12 @@ impl TxnSenderImpl {
                         continue;
                     }
                     let connection_cache = connection_cache.clone();
-                    let sent_at = Instant::now();
                     let leader = Arc::new(leader.clone());
                     let wire_transactions = wire_transactions.clone();
                     txn_sender_runtime.spawn(async move {
                             // retry unless its a timeout
                             for i in 0..SEND_TXN_RETRIES {
+                                info!("sending {} transactions to leader {:?}", wire_transactions.len(), leader.tpu_quic.unwrap());
                                 let conn = connection_cache
                                     .get_nonblocking_connection(&leader.tpu_quic.unwrap());
                                 if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
