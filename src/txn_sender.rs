@@ -85,10 +85,10 @@ impl TxnSenderImpl {
                     sleep(Duration::from_millis(1)).await;
                     continue;
                 }
-                info!("retrying transactions {:?}", queue_len);
+                // info!("retrying transactions {:?}", queue_len);
                 let mut wire_transactions = vec![];
                 for mut transaction_data in transactions.iter_mut() {
-                    info!("retrying transaction {:?}", transaction_data.versioned_transaction.signatures[0]);
+                    // info!("retrying transaction {:?}", transaction_data.versioned_transaction.signatures[0]);
                     wire_transactions.push(transaction_data.wire_transaction.clone());
                     if transaction_data.retry_count >= transaction_data.max_retries {
                         transactions_reached_max_retries
@@ -109,7 +109,7 @@ impl TxnSenderImpl {
                     txn_sender_runtime.spawn(async move {
                             // retry unless its a timeout
                             for i in 0..SEND_TXN_RETRIES {
-                                info!("sending {} transactions to leader {:?}", wire_transactions.len(), leader.tpu_quic.unwrap());
+                                // info!("sending {} transactions to leader {:?}", wire_transactions.len(), leader.tpu_quic.unwrap());
                                 let conn = connection_cache
                                     .get_nonblocking_connection(&leader.tpu_quic.unwrap());
                                 if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {

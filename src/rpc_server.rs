@@ -113,7 +113,7 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
             request_metadata,
         };
         self.txn_sender.send_transaction(transaction);
-        info!("send_transaction_time: {:?}", start.elapsed().as_millis());
+        // info!("send_transaction_time: {:?}", start.elapsed().as_millis());
         Ok(signature)
     }
 }
