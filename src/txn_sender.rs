@@ -103,9 +103,8 @@ impl TxnSenderImpl {
                     }
                 }
                 let mut leader_num = 0;
-                let leaders = leader_tracker.get_leaders();
-                info!("retrying {} transactions to {} leaders", wire_transactions.len(), leaders.len());
-                for leader in leaders {
+                info!("queue {}", wire_transactions.len());
+                for leader in  leader_tracker.get_leaders() {
                     if leader.tpu_quic.is_none() {
                         continue;
                     }
