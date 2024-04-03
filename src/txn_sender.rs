@@ -88,6 +88,13 @@ impl TxnSenderImpl {
                 info!("retrying transactions {:?}", queue_len);
                 let mut wire_transactions = vec![];
                 for mut transaction_data in transactions.iter_mut() {
+                    // skip and remove transactions that in the queue for too long (more than 30 seconds)
+                    if transaction_data.sent_at.elapsed().as_secs() > 30 {
+                        info!("removing transaction {:?}, too long in queue", transaction_data.versioned_transaction.signatures[0]);
+                        transactions_reached_max_retries
+                            .push(get_signature(&transaction_data).unwrap());
+                        continue;
+                    }
                     // info!("retrying transaction {:?}", transaction_data.versioned_transaction.signatures[0]);
                     wire_transactions.push(transaction_data.wire_transaction.clone());
                     if transaction_data.retry_count >= transaction_data.max_retries {
