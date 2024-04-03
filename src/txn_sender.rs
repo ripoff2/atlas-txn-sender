@@ -130,7 +130,7 @@ impl TxnSenderImpl {
                 for signature in transactions_reached_max_retries {
                     let _ = transaction_store.remove_transaction(signature);
                 }
-                sleep(Duration::from_secs(txn_send_retry_interval_seconds as u64)).await;
+                sleep(Duration::from_millis(txn_send_retry_interval_seconds as u64)).await;
             }
         });
     }

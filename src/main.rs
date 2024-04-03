@@ -17,6 +17,8 @@ use std::{
 use figment::{providers::Env, Figment};
 use grpc_geyser::GrpcGeyserImpl;
 use jsonrpsee::server::{middleware::ProxyGetRequestLayer, ServerBuilder};
+use rand::distributions::{Alphanumeric, DistString};
+use rand::Rng;
 use leader_tracker::LeaderTrackerImpl;
 use rpc_server::{AtlasTxnSenderImpl, AtlasTxnSenderServer};
 use serde::Deserialize;
@@ -82,11 +84,12 @@ async fn main() -> anyhow::Result<()> {
         .tpu_connection_pool_size
         .unwrap_or(DEFAULT_TPU_CONNECTION_POOL_SIZE);
     let connection_cache;
+    let client_name = generate_random_string().as_str();
     if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
         let identity_keypair =
             read_keypair_file(identity_keypair_file).expect("keypair file must exist");
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            "atlas-txn-sender",
+            client_name,
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
@@ -95,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let identity_keypair = Keypair::new();
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            "atlas-txn-sender",
+            client_name,
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
@@ -103,8 +106,8 @@ async fn main() -> anyhow::Result<()> {
         ));
     }
 
-    let grpcURL = env.grpc_url.clone();
-    info!("connecting to gRPC server: {}", grpcURL.unwrap());
+    let grpc_url = env.grpc_url.clone();
+    info!("connecting to gRPC server: {}", grpc_url.unwrap());
     let client = Arc::new(RwLock::new(
         GeyserGrpcClient::connect::<String, String>(env.grpc_url.unwrap(), env.x_token,None)
             .unwrap(),
@@ -145,7 +148,8 @@ async fn main() -> anyhow::Result<()> {
         );
     let handle = server.start(atlas_txn_sender.into_rpc());
     info!("collecting metrics on: {}", port);
-    info!("tnx-sender-cfg: num_leaders={}, leader_offset={}, txn_sender_threads={}, max_txn_send_retries={}, txn_send_retry_interval={}",
+    info!("{}: num_leaders={}, leader_offset={}, txn_sender_threads={}, max_txn_send_retries={}, txn_send_retry_interval={}",
+        client_name,
         num_leaders,
         leader_offset,
         txn_sender_threads,
@@ -178,3 +182,8 @@ async fn main() -> anyhow::Result<()> {
 //         .build();
 //     set_global_default(client);
 // }
+
+fn generate_random_string() -> String{
+    let string = Alphanumeric.sample_string(&mut rand::thread_rng(), 16);
+    string
+}
