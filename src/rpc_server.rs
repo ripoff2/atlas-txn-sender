@@ -97,10 +97,10 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
         if self.transaction_store.has_signature(&signature) {
             return Ok(signature);
         }
-        info!(
-            "Received transaction with signature: {}",
-            signature,
-        );
+        // info!(
+        //     "Received transaction with signature: {}",
+        //     signature,
+        // );
         let transaction = TransactionData {
             wire_transaction,
             versioned_transaction,
