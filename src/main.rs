@@ -84,12 +84,12 @@ async fn main() -> anyhow::Result<()> {
         .tpu_connection_pool_size
         .unwrap_or(DEFAULT_TPU_CONNECTION_POOL_SIZE);
     let connection_cache;
-    let client_name = generate_random_string().as_str();
+    let client_name = generate_random_string();
     if let Some(identity_keypair_file) = env.identity_keypair_file.clone() {
         let identity_keypair =
             read_keypair_file(identity_keypair_file).expect("keypair file must exist");
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            client_name.clone(),
+            client_name.as_str(),
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
@@ -98,7 +98,7 @@ async fn main() -> anyhow::Result<()> {
     } else {
         let identity_keypair = Keypair::new();
         connection_cache = Arc::new(ConnectionCache::new_with_client_options(
-            client_name.clone(),
+            client_name.as_str(),
             tpu_connection_pool_size,
             None, // created if none specified
             Some((&identity_keypair, IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)))),
