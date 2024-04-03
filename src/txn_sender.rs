@@ -85,7 +85,6 @@ impl TxnSenderImpl {
                     sleep(Duration::from_millis(1)).await;
                     continue;
                 }
-                info!("retrying transactions {:?}", queue_len);
                 let mut wire_transactions = vec![];
                 for mut transaction_data in transactions.iter_mut() {
                     // skip and remove transactions that in the queue for too long (more than 30 seconds)
@@ -105,6 +104,9 @@ impl TxnSenderImpl {
                     }
                 }
                 let mut leader_num = 0;
+                info!("retrying {:?} transactions to leaders {:?}",
+                    wire_transactions.len(),
+                    leader_tracker.get_leaders().iter().map(|l| l.tpu_quic.clone()).collect());
                 for leader in leader_tracker.get_leaders() {
                     if leader.tpu_quic.is_none() {
                         // error!("leader {:?} has no tpu_quic", leader);
@@ -120,14 +122,14 @@ impl TxnSenderImpl {
                                 let conn = connection_cache
                                     .get_nonblocking_connection(&leader.tpu_quic.unwrap());
                                 if let Ok(result) = timeout(MAX_TIMEOUT_SEND_DATA_BATCH, conn.send_data_batch(&wire_transactions)).await {
-                                    if let Err(e) = result {
-                                        if i == SEND_TXN_RETRIES-1 {
-                                        } else {
-                                        }
-                                    } else {
-                                        let leader_num_str = leader_num.to_string();
-                                        return;
-                                    }
+                                    // if let Err(e) = result {
+                                    //     if i == SEND_TXN_RETRIES-1 {
+                                    //     } else {
+                                    //     }
+                                    // } else {
+                                    //     // let leader_num_str = leader_num.to_string();
+                                    //     return;
+                                    // }
                                 }
                             }
                         });
