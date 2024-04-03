@@ -14,8 +14,6 @@ use std::{
     sync::Arc,
 };
 
-use cadence::{BufferedUdpMetricSink, QueuingMetricSink, StatsdClient};
-use cadence_macros::set_global_default;
 use figment::{providers::Env, Figment};
 use grpc_geyser::GrpcGeyserImpl;
 use jsonrpsee::server::{middleware::ProxyGetRequestLayer, ServerBuilder};
@@ -65,11 +63,8 @@ async fn main() -> anyhow::Result<()> {
     // Log to stdout
     tracing_subscriber::fmt()
         .with_env_filter(env_filter)
-        .json()
+        // .json()
         .init();
-
-    // Metrics
-    new_metrics_client();
 
     let service_builder = tower::ServiceBuilder::new()
         // Proxy `GET /health` requests to internal `health` method.
@@ -131,7 +126,7 @@ async fn main() -> anyhow::Result<()> {
     ));
 
     let txn_sender_threads = env.txn_sender_threads.unwrap_or(4);
-    let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(2);
+    let txn_send_retry_interval_seconds = env.txn_send_retry_interval.unwrap_or(1);
     let txn_sender = Arc::new(TxnSenderImpl::new(
         leader_tracker,
         transaction_store.clone(),
@@ -161,25 +156,25 @@ async fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn new_metrics_client() {
-    let uri = env::var("METRICS_URI")
-        .or::<String>(Ok("127.0.0.1".to_string()))
-        .unwrap();
-    let port = env::var("METRICS_PORT")
-        .or::<String>(Ok("7998".to_string()))
-        .unwrap()
-        .parse::<u16>()
-        .unwrap();
-    info!("collecting metrics on: {}:{}", uri, port);
-    let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
-    socket.set_nonblocking(true).unwrap();
-
-    let host = (uri, port);
-    let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
-    let queuing_sink = QueuingMetricSink::from(udp_sink);
-    let builder = StatsdClient::builder("atlas_txn_sender", queuing_sink);
-    let client = builder
-        .with_error_handler(|e| error!("statsd metrics error: {}", e))
-        .build();
-    set_global_default(client);
-}
+// fn new_metrics_client() {
+//     let uri = env::var("METRICS_URI")
+//         .or::<String>(Ok("127.0.0.1".to_string()))
+//         .unwrap();
+//     let port = env::var("METRICS_PORT")
+//         .or::<String>(Ok("7998".to_string()))
+//         .unwrap()
+//         .parse::<u16>()
+//         .unwrap();
+//     info!("collecting metrics on: {}:{}", uri, port);
+//     let socket = UdpSocket::bind("0.0.0.0:0").unwrap();
+//     socket.set_nonblocking(true).unwrap();
+//
+//     let host = (uri, port);
+//     let udp_sink = BufferedUdpMetricSink::from(host, socket).unwrap();
+//     let queuing_sink = QueuingMetricSink::from(udp_sink);
+//     let builder = StatsdClient::builder("atlas_txn_sender", queuing_sink);
+//     let client = builder
+//         .with_error_handler(|e| error!("statsd metrics error: {}", e))
+//         .build();
+//     set_global_default(client);
+// }

@@ -5,7 +5,6 @@ use std::{
     time::{Duration, Instant, SystemTime},
 };
 
-use cadence_macros::{statsd_count, statsd_time};
 use jsonrpsee::{
     core::{async_trait, RpcResult},
     proc_macros::rpc,
@@ -15,7 +14,7 @@ use serde::Deserialize;
 use solana_rpc_client_api::config::RpcSendTransactionConfig;
 use solana_sdk::transaction::VersionedTransaction;
 use solana_transaction_status::UiTransactionEncoding;
-use tracing::error;
+use tracing::{error, info};
 
 use crate::{
     errors::invalid_request,
@@ -77,11 +76,6 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
         request_metadata: Option<RequestMetadata>,
     ) -> RpcResult<String> {
         let sent_at = Instant::now();
-        let api_key = request_metadata
-            .clone()
-            .map(|m| m.api_key)
-            .unwrap_or("none".to_string());
-        statsd_count!("send_transaction", 1, "api_key" => &api_key);
         validate_send_transaction_params(&params)?;
         let start = Instant::now();
         let encoding = params.encoding.unwrap_or(UiTransactionEncoding::Base58);
@@ -101,9 +95,12 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
             };
         let signature = versioned_transaction.signatures[0].to_string();
         if self.transaction_store.has_signature(&signature) {
-            statsd_count!("duplicate_transaction", 1, "api_key" => &api_key);
             return Ok(signature);
         }
+        info!(
+            "Received transaction with signature: {}",
+            signature,
+        );
         let transaction = TransactionData {
             wire_transaction,
             versioned_transaction,
@@ -116,11 +113,7 @@ impl AtlasTxnSenderServer for AtlasTxnSenderImpl {
             request_metadata,
         };
         self.txn_sender.send_transaction(transaction);
-        statsd_time!(
-            "send_transaction_time",
-            start.elapsed(),
-            "api_key" => &api_key
-        );
+        info!("send_transaction_time: {:?}", start.elapsed().as_millis());
         Ok(signature)
     }
 }

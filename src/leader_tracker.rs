@@ -8,7 +8,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use cadence_macros::statsd_time;
 use dashmap::DashMap;
 use indexmap::IndexMap;
 use solana_client::rpc_client::RpcClient;
@@ -79,13 +78,11 @@ impl LeaderTrackerImpl {
         let self_clone = self.clone();
         tokio::spawn(async move {
             loop {
-                let start = Instant::now();
                 if let Err(e) = self_clone.poll_slot_leaders_once() {
                     error!("Error polling slot leaders: {}", e);
                     sleep(Duration::from_secs(1)).await;
                     continue;
                 }
-                // statsd_time!("poll_slot_leaders", start.elapsed());
                 sleep(Duration::from_secs(60)).await;
             }
         });

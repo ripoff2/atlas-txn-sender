@@ -406,6 +406,7 @@ dependencies = [
  "indexmap 2.2.6",
  "jsonrpsee",
  "jsonrpsee-types 0.18.2",
+ "log",
  "rand 0.8.5",
  "serde",
  "serde_json",

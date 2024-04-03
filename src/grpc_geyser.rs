@@ -2,7 +2,6 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use cadence_macros::statsd_count;
 use dashmap::DashMap;
 use futures::sink::SinkExt;
 use futures::StreamExt;
@@ -149,7 +148,6 @@ impl<T: Interceptor + Send + Sync + 'static> GrpcGeyserImpl<T> {
                                     let ping = grpc_tx.send(ping()).await;
                                     if let Err(e) = ping {
                                         error!("Error sending ping: {}", e);
-                                        statsd_count!("grpc_ping_error", 1);
                                         break;
                                     }
                                 }
